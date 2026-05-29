@@ -7,10 +7,17 @@ import numpy as np
 from datetime import datetime
 import os
 
-def load_all_data(data_dir="data"):
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_DATA_DIR = os.path.join(SCRIPT_DIR, "data")
+
+def load_all_data(data_dir=None):
     """
     Load all Excel files from the data directory.
     """
+    if data_dir is None:
+        data_dir = DEFAULT_DATA_DIR
+    
     data = {}
     
     files = {
@@ -48,7 +55,6 @@ def combine_sales_data(sales_by_model, additional_sales):
     
     for df, name in [(sales_by_model, 'main'), (additional_sales, 'additional')]:
         if not df.empty:
-            # Ensure consistent column names
             expected_cols = ['Year', 'Month', 'Date', 'Model', 'Dealer ID', 'Quantity Sold', 'Profit']
             if all(col in df.columns for col in expected_cols):
                 sales_dfs.append(df[expected_cols].copy())
@@ -84,15 +90,15 @@ def process_sales_data(combined_sales):
     df['Year_Month'] = df['Date'].dt.strftime('%Y-%m')
     df['Year_Quarter'] = df['Year'].astype(str) + '-Q' + df['Quarter'].astype(str)
     
-    # Calculate average profit per unit
-    df['Avg_Profit_Per_Unit'] = df['Profit'] / df['Quantity Sold']
+    # Calculate average profit per unit (handle division by zero)
+    df['Avg_Profit_Per_Unit'] = df['Profit'] / df['Quantity Sold'].replace(0, np.nan)
     
     # Add date components for filtering
     df['Month_Name'] = df['Date'].dt.strftime('%B')
     
     return df
 
-def load_and_process_data(data_dir="data"):
+def load_and_process_data(data_dir=None):
     """
     Main function to load and process all data.
     """
@@ -109,7 +115,8 @@ def load_and_process_data(data_dir="data"):
     processed_sales = process_sales_data(combined_sales)
     
     print(f"Total sales records: {len(processed_sales)}")
-    print(f"Date range: {processed_sales['Date'].min()} to {processed_sales['Date'].max()}")
+    if not processed_sales.empty:
+        print(f"Date range: {processed_sales['Date'].min()} to {processed_sales['Date'].max()}")
     
     return {
         'sales': processed_sales,
@@ -124,6 +131,13 @@ def merge_with_dealers(sales_df, dealers_df):
     """
     if sales_df.empty or dealers_df.empty:
         return sales_df
+    
+    # Ensure Dealer ID columns are the same type
+    sales_df = sales_df.copy()
+    dealers_df = dealers_df.copy()
+    
+    sales_df['Dealer ID'] = sales_df['Dealer ID'].astype(int)
+    dealers_df['Dealer ID'] = dealers_df['Dealer ID'].astype(int)
     
     merged = sales_df.merge(
         dealers_df[['Dealer ID', 'Country', 'State', 'City', 'Dealer Name', 'Latitude', 'Longitude']],
@@ -161,6 +175,9 @@ def prepare_recalls_data(recalls_df):
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
     
+    # Convert Units to numeric, handling any string values
+    df['Units'] = pd.to_numeric(df['Units'], errors='coerce')
+    
     return df
 
 def get_data_summary(data):
@@ -170,6 +187,17 @@ def get_data_summary(data):
     sales = data['sales']
     dealers = data['dealers']
     recalls = data['recalls']
+    
+    if sales.empty:
+        return {
+            'total_revenue': 0,
+            'total_units': 0,
+            'avg_profit_per_unit': 0,
+            'unique_models': 0,
+            'unique_dealers': 0,
+            'total_recalls': 0,
+            'date_range': {'start': 'N/A', 'end': 'N/A'}
+        }
     
     summary = {
         'total_revenue': float(sales['Profit'].sum()) if not sales.empty else 0,
