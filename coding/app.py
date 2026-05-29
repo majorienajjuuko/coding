@@ -5,6 +5,8 @@ Main Streamlit application for Sales Data Analysis System.
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import warnings
+warnings.filterwarnings('ignore')
 
 # Import custom modules
 from data_loader import load_and_process_data, merge_with_dealers, prepare_recalls_data, get_data_summary
@@ -114,6 +116,7 @@ def main():
         except Exception as e:
             st.error(f"Error loading data: {e}")
             st.info("Please ensure all data files are in the 'data' directory.")
+            st.info("Required files: AU_Sales_By_Model.xlsx, car_models.xlsx, Car_Recalls.xlsx, dealers.xlsx, sales_by_model.xlsx")
             return
     
     sales_df = data['sales']
@@ -195,31 +198,44 @@ def main():
         
         with col1:
             monthly_trends = get_monthly_trends(filtered_sales)
-            profit_chart = create_profit_trend_chart(monthly_trends)
-            st.plotly_chart(profit_chart, use_container_width=True)
+            if not monthly_trends.empty:
+                profit_chart = create_profit_trend_chart(monthly_trends)
+                st.plotly_chart(profit_chart, use_container_width=True)
+            else:
+                st.info("No monthly trend data available")
         
         with col2:
-            quantity_chart = create_quantity_trend_chart(monthly_trends)
-            st.plotly_chart(quantity_chart, use_container_width=True)
+            monthly_trends = get_monthly_trends(filtered_sales)
+            if not monthly_trends.empty:
+                quantity_chart = create_quantity_trend_chart(monthly_trends)
+                st.plotly_chart(quantity_chart, use_container_width=True)
+            else:
+                st.info("No monthly trend data available")
         
         # Yearly summary and growth
         yearly_summary = get_yearly_summary(filtered_sales)
         if not yearly_summary.empty:
-            growth_chart = create_yearly_growth_chart(yearly_summary)
-            st.plotly_chart(growth_chart, use_container_width=True)
+            try:
+                growth_chart = create_yearly_growth_chart(yearly_summary)
+                st.plotly_chart(growth_chart, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not create growth chart: {e}")
             
             # Yearly summary table
             st.subheader("Yearly Summary")
-            st.dataframe(
-                yearly_summary.style.format({
-                    'Profit': '${:,.2f}',
-                    'Quantity Sold': '{:,.0f}',
-                    'Avg_Profit_Per_Unit': '${:,.2f}',
-                    'Profit_Growth': '{:.1f}%',
-                    'Units_Growth': '{:.1f}%'
-                }),
-                use_container_width=True
-            )
+            try:
+                st.dataframe(
+                    yearly_summary.style.format({
+                        'Profit': '${:,.2f}',
+                        'Quantity Sold': '{:,.0f}',
+                        'Avg_Profit_Per_Unit': '${:,.2f}',
+                        'Profit_Growth': '{:.1f}%',
+                        'Units_Growth': '{:.1f}%'
+                    }),
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.dataframe(yearly_summary, use_container_width=True)
         
         # Quarterly breakdown
         quarterly_data = get_quarterly_breakdown(filtered_sales)
@@ -235,18 +251,24 @@ def main():
         with col1:
             metric_choice = st.selectbox("Metric for Top Models", ["Profit", "Quantity"], key="models_metric")
             top_models = get_top_models(filtered_sales, metric=metric_choice, n=10)
-            models_chart = create_top_models_bar_chart(top_models, metric=metric_choice)
-            st.plotly_chart(models_chart, use_container_width=True)
-            
-            # Model share pie chart
-            share_chart = create_model_share_pie_chart(top_models)
-            st.plotly_chart(share_chart, use_container_width=True)
+            if not top_models.empty:
+                models_chart = create_top_models_bar_chart(top_models, metric=metric_choice)
+                st.plotly_chart(models_chart, use_container_width=True)
+                
+                # Model share pie chart
+                share_chart = create_model_share_pie_chart(top_models)
+                st.plotly_chart(share_chart, use_container_width=True)
+            else:
+                st.info("No model data available")
         
         with col2:
             dealer_metric = st.selectbox("Metric for Top Dealers", ["Profit", "Quantity"], key="dealers_metric")
             top_dealers = get_top_dealers(filtered_sales, metric=dealer_metric, n=10)
-            dealers_chart = create_top_dealers_chart(top_dealers, metric=dealer_metric)
-            st.plotly_chart(dealers_chart, use_container_width=True)
+            if not top_dealers.empty:
+                dealers_chart = create_top_dealers_chart(top_dealers, metric=dealer_metric)
+                st.plotly_chart(dealers_chart, use_container_width=True)
+            else:
+                st.info("No dealer data available")
         
         # Top models over time
         ranking_over_time = get_model_ranking_over_time(filtered_sales, n_models=5)
@@ -263,17 +285,25 @@ def main():
         with col1:
             seasonal_data = get_seasonal_analysis(filtered_sales)
             if not seasonal_data.empty:
-                st.dataframe(
-                    seasonal_data.style.format({
-                        'Profit': '${:,.2f}',
-                        'Quantity Sold': '{:,.0f}'
-                    }),
-                    use_container_width=True
-                )
+                try:
+                    st.dataframe(
+                        seasonal_data.style.format({
+                            'Profit': '${:,.2f}',
+                            'Quantity Sold': '{:,.0f}'
+                        }),
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.dataframe(seasonal_data, use_container_width=True)
+            else:
+                st.info("No seasonal data available")
         
         with col2:
-            heatmap = create_seasonal_heatmap(filtered_sales)
-            st.plotly_chart(heatmap, use_container_width=True)
+            try:
+                heatmap = create_seasonal_heatmap(filtered_sales)
+                st.plotly_chart(heatmap, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not create heatmap: {e}")
     
     with tab4:
         st.subheader("Model Performance Analysis")
@@ -281,21 +311,27 @@ def main():
         model_performance = get_model_performance(filtered_sales)
         
         if not model_performance.empty:
-            comparison_chart = create_model_comparison_chart(model_performance)
-            st.plotly_chart(comparison_chart, use_container_width=True)
+            try:
+                comparison_chart = create_model_comparison_chart(model_performance)
+                st.plotly_chart(comparison_chart, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not create comparison chart: {e}")
             
             # Detailed model performance table
             st.subheader("Detailed Model Performance")
-            st.dataframe(
-                model_performance.style.format({
-                    'Profit': '${:,.2f}',
-                    'Quantity Sold': '{:,.0f}',
-                    'Avg_Profit_Per_Unit': '${:,.2f}',
-                    'Profit_Per_Dealer': '${:,.2f}',
-                    'Units_Per_Dealer': '{:,.1f}'
-                }),
-                use_container_width=True
-            )
+            try:
+                st.dataframe(
+                    model_performance.style.format({
+                        'Profit': '${:,.2f}',
+                        'Quantity Sold': '{:,.0f}',
+                        'Avg_Profit_Per_Unit': '${:,.2f}',
+                        'Profit_Per_Dealer': '${:,.2f}',
+                        'Units_Per_Dealer': '{:,.1f}'
+                    }),
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.dataframe(model_performance, use_container_width=True)
             
             # Generate and display model report
             if st.button("Generate Model Performance Report"):
@@ -309,21 +345,27 @@ def main():
         
         if not dealer_performance.empty:
             # Dealer map
-            dealer_map = create_dealer_map(dealer_performance)
-            st.plotly_chart(dealer_map, use_container_width=True)
+            try:
+                dealer_map = create_dealer_map(dealer_performance)
+                st.plotly_chart(dealer_map, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not create dealer map: {e}")
             
             # Dealer performance table
             st.subheader("Dealer Performance Details")
             display_cols = ['Dealer ID', 'Dealer Name', 'City', 'State', 'Profit', 'Quantity Sold']
             available_cols = [c for c in display_cols if c in dealer_performance.columns]
             
-            st.dataframe(
-                dealer_performance[available_cols].style.format({
-                    'Profit': '${:,.2f}',
-                    'Quantity Sold': '{:,.0f}'
-                }),
-                use_container_width=True
-            )
+            try:
+                st.dataframe(
+                    dealer_performance[available_cols].style.format({
+                        'Profit': '${:,.2f}',
+                        'Quantity Sold': '{:,.0f}'
+                    }),
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.dataframe(dealer_performance[available_cols], use_container_width=True)
             
             # Generate dealer report
             if st.button("Generate Dealer Performance Report"):
@@ -337,23 +379,29 @@ def main():
             recalls_impact = get_recalls_impact(recalls_df, filtered_sales)
             
             if not recalls_impact.empty:
-                impact_chart = create_recalls_impact_chart(recalls_impact)
-                st.plotly_chart(impact_chart, use_container_width=True)
+                try:
+                    impact_chart = create_recalls_impact_chart(recalls_impact)
+                    st.plotly_chart(impact_chart, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"Could not create impact chart: {e}")
                 
                 # Detailed recall impact table
                 st.subheader("Detailed Recall Impact by Model")
                 display_cols = ['Model', 'Profit', 'Quantity Sold', 'Recall_Units', 'Recall_Ratio']
                 available_cols = [c for c in display_cols if c in recalls_impact.columns]
                 
-                st.dataframe(
-                    recalls_impact[available_cols].style.format({
-                        'Profit': '${:,.2f}',
-                        'Quantity Sold': '{:,.0f}',
-                        'Recall_Units': '{:,.0f}',
-                        'Recall_Ratio': '{:.1%}'
-                    }),
-                    use_container_width=True
-                )
+                try:
+                    st.dataframe(
+                        recalls_impact[available_cols].style.format({
+                            'Profit': '${:,.2f}',
+                            'Quantity Sold': '{:,.0f}',
+                            'Recall_Units': '{:,.0f}',
+                            'Recall_Ratio': '{:.1%}'
+                        }),
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.dataframe(recalls_impact[available_cols], use_container_width=True)
                 
                 # Generate recalls report
                 if st.button("Generate Recalls Impact Report"):
@@ -377,14 +425,17 @@ def main():
     }
     
     if st.sidebar.button("Export to Excel"):
-        filename = export_to_excel(export_data)
-        with open(filename, 'rb') as f:
-            st.sidebar.download_button(
-                label="Download Excel File",
-                data=f,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        try:
+            filename = export_to_excel(export_data)
+            with open(filename, 'rb') as f:
+                st.sidebar.download_button(
+                    label="Download Excel File",
+                    data=f,
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        except Exception as e:
+            st.sidebar.error(f"Export failed: {e}")
     
     # Sidebar - Summary Report
     st.sidebar.markdown("---")
